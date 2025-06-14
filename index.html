@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Checklist Inteligente Tocología</title>
+  <!-- Tailwind CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- jsPDF core -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <!-- jsPDF-autoTable plugin -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+  <style>
+    body { background: #F2F2F2; }
+    header { background: #8A1538; }
+    .btn-issste { background: #3A913F; }
+  </style>
+</head>
+<body class="text-gray-900">
+  <!-- ---------- ENCABEZADO ---------- -->
+  <header class="text-white p-4 shadow sticky top-0 z-20 flex items-center gap-4">
+    <img src="/mnt/data/c67df54b-5966-45e5-89b2-3447e2f2bc3f.jpg" alt="Logo ISSSTE" class="h-16" />
+    <div>
+      <h1 class="text-2xl font-semibold">Checklist Inteligente – Área de Tocología</h1>
+      <p class="text-sm">
+        Marque los ítems <strong>No conformes</strong>. El sistema clasifica automáticamente el tipo de mantenimiento.
+      </p>
+    </div>
+  </header>
+
+  <main class="p-4">
+    <!-- Aquí irían las secciones con inputs y checkboxes -->
+    <section>
+      <h2>Equipo A</h2>
+      <p data-cat="ALTA URGENCIA">Categoría de urgencia</p>
+      <label>
+        <input type="checkbox" data-label="Ítem 1" data-weight="1" />
+        Ítem 1
+      </label>
+      <!-- … más inputs … -->
+      <p>
+        <a href="checklist_tocologia.pdf" download class="text-blue-800 underline text-sm">
+          Descargar formulario vacío (PDF)
+        </a>
+      </p>
+    </section>
+  </main>
+
+  <!-- ---------- PIE DE PÁGINA ---------- -->
+  <footer class="text-center text-xs text-gray-600 mt-10 pb-4">
+    Hospital Público ISSSTE – Subdirección de Ingeniería Biomédica<br/>
+    ISSSTE – Hospital Regional Dr. Valentín Gómez Farías – Departamento de Ingeniería Biomédica
+  </footer>
+
+  <!-- ---------- SCRIPT PRINCIPAL ---------- -->
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      document.getElementById('generar').addEventListener('click', () => {
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+
+        // Datos del reporte
+        const resp = document.getElementById('responsable').value.trim() || 'Sin nombre';
+        const turno = document.getElementById('turno').value;
+        const obs = document.getElementById('observaciones').value.trim() || 'Sin observaciones';
+
+        // Encabezado del PDF
+        let y = 15;
+        doc.setFontSize(14);
+        doc.text('Reporte Checklist – Área de Tocología', 105, y, { align: 'center' });
+        y += 10;
+        doc.setFontSize(10);
+        doc.text(`Responsable: ${resp}`, 14, y);
+        doc.text(`Fecha: ${(new Date()).toLocaleDateString()}`, 150, y);
+        y += 6;
+        doc.text(`Turno: ${turno}`, 14, y);
+        y += 8;
+        doc.text('Observaciones:', 14, y);
+        y += 6;
+        doc.setFontSize(9);
+        const obsLines = doc.splitTextToSize(obs, 180);
+        doc.text(obsLines, 14, y);
+        y += obsLines.length * 4 + 4;
+
+        // Construcción de la tabla
+        const bodyRows = [];
+        document.querySelectorAll('main section').forEach(sec => {
+          const eqName = sec.querySelector('h2')?.textContent || 'Sin equipo';
+          const cat = sec.querySelector('p')?.dataset.cat || 'SIN URGENCIA';
+          sec.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+            const status = cb.checked ? 'NO' : 'SÍ';
+            bodyRows.push([eqName, cb.dataset.label, status, cb.dataset.weight, cat]);
+          });
+        });
+
+        doc.autoTable({
+          head: [['Equipo', 'Ítem', 'Conforme', 'Peso', 'Mantenimiento']],
+          body: bodyRows,
+          startY: y,
+          theme: 'grid',
+          headStyles: { fillColor: [138, 21, 56], textColor: 255, fontSize: 8 },
+          styles: { fontSize: 7 },
+          columnStyles: {
+            0: { fontStyle: 'bold' },
+            2: { halign: 'center' }
+          },
+          didParseCell: (() => {
+            let lastEquip = '';
+            let shade = false;
+            return (data) => {
+              if (data.section === 'body') {
+                if (data.column.index === 0) {
+                  if (data.cell.raw !== lastEquip) {
+                    shade = !shade;
+                    lastEquip = data.cell.raw;
+                  }
+                }
+                if (shade) data.cell.styles.fillColor = [245, 225, 192];
+                if (data.column.index === 2 && data.cell.raw === 'NO') {
+                  data.cell.styles.textColor = [200, 0, 0];
+                  data.cell.styles.fontStyle = 'bold';
+                }
+              }
+            };
+          })()
+        });
+
+        doc.save('resultado_checklist_tocologia.pdf');
+      });
+    });
+  </script>
+</body>
+</html>
