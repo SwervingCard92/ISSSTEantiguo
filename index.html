@@ -1,168 +1,177 @@
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Checklist Inteligente Tocología</title>
-  <!-- Tailwind CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- jsPDF core -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-  <!-- jsPDF‑autoTable plugin -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
-  <style>
-    body{background:#F2F2F2}
-    header{background:#8A1538}
-    .btn-issste{background:#3A913F}
-  </style>
 </head>
-<body class="text-gray-900">
-  <!-- ---------- ENCABEZADO ---------- -->
-  <header class="text-white p-4 shadow sticky top-0 z-20 flex items-center gap-4">
-    <img src="Logo.jpg" alt="Logo ISSSTE" class="h-16" />
-    <div>
-      <h1 class="text-2xl font-semibold">Checklist – Área de Tocología</h1>
-      <p class="text-sm">Marque los ítems <strong>No conformes</strong>. El sistema clasifica automáticamente el tipo de mantenimiento.</p>
-    </div>
+<body class="bg-gray-100 text-gray-900">
+  <header class="bg-blue-800 text-white p-4 shadow sticky top-0 z-10">
+    <h1 class="text-2xl font-semibold text-center">Checklist Inteligente – Área de Tocología</h1>
+    <p class="text-center text-sm">Marque los ítems <strong>No conformes</strong>. El sistema clasifica automáticamente el tipo de mantenimiento.</p>
   </header>
 
-  <!-- ---------- ÍNDICE ---------- -->
-  <nav class="p-4 bg-white shadow sticky top-20 z-10">
+  <nav class="p-4 bg-white shadow sticky top-16 z-10">
     <h2 class="text-lg font-bold mb-2">Índice de Equipos</h2>
     <ul id="indice" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 text-sm text-blue-700 list-disc list-inside"></ul>
   </nav>
 
-  <!-- ---------- CONTENIDO DINÁMICO ---------- -->
   <main id="app" class="p-4 space-y-6"></main>
 
-  <!-- ---------- CONTROLES ---------- -->
-  <section class="p-4 text-center space-y-2">
-    <input id="responsable" type="text" placeholder="Nombre del responsable" class="p-2 border rounded w-64">
-    <select id="turno" class="p-2 border rounded w-40 ml-2">
-      <option value="Matutino">Matutino</option>
-      <option value="Vespertino">Vespertino</option>
-      <option value="Nocturno">Nocturno</option>
-    </select>
-    <textarea id="observaciones" rows="4" class="p-2 border rounded w-80 block mx-auto" placeholder="Observaciones generales..."></textarea>
-    <button id="btnGenerarPDF" class="btn-issste text-white px-4 py-2 rounded shadow hover:brightness-110">Generar y descargar PDF</button>
-    <p><a href="checklist_tocologia.pdf" download class="text-blue-800 underline text-sm">Descargar formulario vacío (PDF)</a></p>
-  </section>
+  <div class="p-4 text-center space-y-2">
+    <input type="text" id="responsable" placeholder="Nombre del responsable" class="p-2 border rounded w-64" />
+    <br>
+    <button id="btnGenerarPDF" class="bg-green-600 text-white px-4 py-2 rounded shadow hover:bg-green-700">Generar y descargar PDF con resultados</button>
+    <br>
+    <a href="checklist_tocologia.pdf" download class="text-sm text-blue-800 underline">Descargar versión para impresión (formato vacío)</a>
+  </div>
 
-  <footer class="text-center text-xs text-gray-600 mt-10 pb-4"> ISSSTE – Hospital Regional Dr. Valentín Gómez Farías – Departamento de Ingeniería Biomédica</footer>
-
-  <!-- ---------- SCRIPT PRINCIPAL ---------- -->
   <script>
-  document.addEventListener('DOMContentLoaded', () => {
-    /* -------------------- Configuración -------------------- */
-    const THRESHOLDS = { CORRECTIVO_SCORE: 5 };
-    const colorMap = { INMEDIATA:'text-red-600', PRONTA:'text-orange-500', PROGRAMADA:'text-yellow-600', SIN_URGENCIA:'text-green-600' };
-    const clasificar = (s,c) => c||s>=THRESHOLDS.CORRECTIVO_SCORE? 'INMEDIATA': s>=3? 'PRONTA': s>=1? 'PROGRAMADA':'SIN_URGENCIA';
+    document.addEventListener("DOMContentLoaded", () => {
+      const THRESHOLDS = { CORRECTIVO_SCORE: 5 };
+      function clasificar(puntaje, existeCritico) {
+        if (existeCritico || puntaje >= THRESHOLDS.CORRECTIVO_SCORE) return "INMEDIATA";
+        if (puntaje >= 3) return "PRONTA";
+        if (puntaje >= 1) return "PROGRAMADA";
+        return "SIN URGENCIA";
+      }
 
-    /* -------------------- Datos ---------------------------- */
-    const EQUIPOS = [
-      ['A  Máquina de anestesia + ventilador', [['* Fuente O₂ (50 psi) y cilindro de respaldo',5],['* Prueba de fugas <= 300 mL/10 s',5],['* Ventilador cicla y alarmas presión/apnea',5],['Vaporizador con agente >= 1/4 tanque',1],['Absorbedor CO₂ fresco',1]]],
-      ['B  Desfibrilador bifásico', [['* Autotest diario OK (luz verde)',5],['* Carga 30 J < 5 s y descarga',5],['Batería >= 80 %',1],['Palas/parches en fecha',1]]],
-      ['C  Monitor multiparámetro', [['* ECG y SpO₂ funcionales; alarmas suenan',5],['Batería >= 30 min',1],['PNI infla/defla sin fugas',1]]],
-      ['D  Cuna térmica', [['* Modo servo mantiene 36-37 °C ± 0.2',5],['* Alarmas de sobretemperatura y sonda activas',5],['Sensor de piel íntegro',1]]],
-      ['E  Incubadora neonatal', [['* Control temperatura de aire ± 0.3 °C',5],['* Alarmas alta/baja temperatura',5],['Humidificador operativo',1]]],
-      ['F  Aspirador de succión', [['* Vacío >= -550 mmHg estable',5],['Frasco y tapa herméticos',1],['Filtro bacteriano seco',1]]],
-      ['G  Mesa quirúrgica', [['* Movimientos y frenos 100 % operativos',5],['Cable/tierra seguros',1],['Colchón sin rasgaduras',1]]],
-      ['H  Lámparas de cirugía', [['* Todas las fuentes de luz activas',5],['Brazos sostienen posición',1],['Mango estéril firme',1]]],
-      ['I  Torre de gases/eléctrica', [['* Salida O₂ 50 psi y vacío -550 mmHg',5],['* Tomas eléctricas con puesta a tierra',5],['Acoples sin fuga audible',1]]],
-      ['J  Pulsioxímetro portátil', [['* Lectura SpO₂ estable >= 95 %',5],['Batería >= 50 %',1]]],
-      ['K  Ultrasonido Doppler fetal', [['* Señal audible clara en prueba',5],['Batería/pilas en buen nivel',1]]],
-      ['L  Esfigmomanómetro + estetoscopio', [['* Manómetro en cero; sin fugas',5],['Estetoscopio acústica nítida',1]]],
-      ['M  Carro-camilla', [['* Barandales y frenos firmes',5],['Ruedas libres de obstrucción',1]]],
-      ['N  Negatoscopio', [['Iluminación continua homogénea',1],['Interruptor funcional',1]]],
-      ['O  Balanza para recién nacido', [['Calibración ± 10 g con peso patrón',1]]],
-      ['P  Tablero de aislamiento (LIM)', [['* Test LIM → alarma',5],['Fuga en reposo < 2 mA',1]]]
-    ];
+      const EQUIPOS = [
+        ["A  Máquina de anestesia + ventilador", [["* Fuente O₂ (50 psi) y cilindro de respaldo",5],["* Prueba de fugas <= 300 mL/10 s",5],["* Ventilador cicla y alarmas presión/apnea",5],["Vaporizador con agente >= 1/4 tanque",1],["Absorbedor CO₂ fresco",1]]],
+        ["B  Desfibrilador bifásico", [["* Autotest diario OK (luz verde)",5],["* Carga 30 J < 5 s y descarga",5],["Batería >= 80 %",1],["Palas/parches en fecha",1]]],
+        ["C  Monitor multiparámetro", [["* ECG y SpO₂ funcionales; alarmas suenan",5],["Batería >= 30 min",1],["PNI infla/defla sin fugas",1]]],
+        ["D  Cuna térmica", [["* Modo servo mantiene 36-37 °C ± 0.2",5],["* Alarmas de sobretemperatura y sonda activas",5],["Sensor de piel íntegro",1]]],
+        ["E  Incubadora neonatal", [["* Control temperatura de aire ± 0.3 °C",5],["* Alarmas alta/baja temperatura",5],["Humidificador operativo",1]]],
+        ["F  Aspirador de succión", [["* Vacío >= -550 mmHg estable",5],["Frasco y tapa herméticos",1],["Filtro bacteriano seco",1]]],
+        ["G  Mesa quirúrgica", [["* Movimientos y frenos 100 % operativos",5],["Cable/tierra seguros",1],["Colchón sin rasgaduras",1]]],
+        ["H  Lámparas de cirugía", [["* Todas las fuentes de luz activas",5],["Brazos sostienen posición",1],["Mango estéril firme",1]]],
+        ["I  Torre de gases/eléctrica", [["* Salida O₂ 50 psi y vacío -550 mmHg",5],["* Tomas eléctricas con puesta a tierra",5],["Acoples sin fuga audible",1]]],
+        ["J  Pulsioxímetro portátil", [["* Lectura SpO₂ estable >= 95 %",5],["Batería >= 50 %",1]]],
+        ["K  Ultrasonido Doppler fetal", [["* Señal audible clara en prueba",5],["Batería/pilas en buen nivel",1]]],
+        ["L  Esfigmomanómetro + estetoscopio", [["* Manómetro en cero; sin fugas",5],["Estetoscopio acústica nítida",1]]],
+        ["M  Carro-camilla", [["* Barandales y frenos firmes",5],["Ruedas libres de obstrucción",1]]],
+        ["N  Negatoscopio", [["Iluminación continua homogénea",1],["Interruptor funcional",1]]],
+        ["O  Balanza para recién nacido", [["Calibración ± 10 g con peso patrón",1]]],
+        ["P  Tablero de aislamiento (LIM)", [["* Test LIM → alarma",5],["Fuga en reposo < 2 mA",1]]],
+      ];
 
-    /* -------------------- Construcción UI ------------------ */
-    const app=document.getElementById('app');
-    const idxUL=document.getElementById('indice');
+      const app = document.getElementById("app");
+      const indice = document.getElementById("indice");
 
-    EQUIPOS.forEach(([eq,items],i)=>{
-      const id=`eq${i}`;
-      idxUL.insertAdjacentHTML('beforeend',`<li><a href="#${id}" class="hover:underline">${eq}</a></li>`);
-      const sec=document.createElement('section');
-      sec.id=id;sec.className='bg-white p-4 rounded-xl shadow scroll-mt-24';
-      sec.innerHTML=`<h2 class="text-xl font-bold mb-3 text-blue-800">${eq}</h2>`;
-      const ul=document.createElement('ul');ul.className='space-y-1';
-      items.forEach(([txt,w],j)=>{
-        ul.insertAdjacentHTML('beforeend',`<li class="flex gap-2"><input type="checkbox" id="${id}-${j}" data-weight="${w}" data-label="${txt}" class="mt-1 h-4 w-4 text-red-600 border-gray-300 rounded"><label for="${id}-${j}" class="flex-1 text-sm">${txt} <span class="text-xs text-gray-400">(W:${w})</span></label></li>`);
-      });
-      sec.appendChild(ul);
-      sec.insertAdjacentHTML('beforeend',`<p class="mt-3 font-semibold" data-code="${id}">Clasificación: SIN URGENCIA (0)</p>`);
+      EQUIPOS.forEach(([nombre, items], i) => {
+        const codigo = `EQ${i}`;
 
-      // recalculador
-      sec.addEventListener('change',()=>{
-        let s=0,c=false;ul.querySelectorAll('input:checked').forEach(cb=>{const w=+cb.dataset.weight;s+=w;if(w===5)c=true;});
-        const cat=clasificar(s,c);const p=sec.querySelector('p');p.dataset.score=s;p.dataset.cat=cat;p.innerHTML=`Clasificación: <span class="${colorMap[cat]}">${cat}</span> (${s})`;});
-      app.appendChild(sec);
-    });
+        const li = document.createElement("li");
+        const link = document.createElement("a");
+        link.href = `#${codigo}`;
+        link.className = "hover:underline";
+        link.textContent = nombre;
+        li.appendChild(link);
+        indice.appendChild(li);
 
-    /* -------------------- PDF ------------------------------ */
-    document.getElementById('btnGenerarPDF').onclick=()=>{
-      const { jsPDF }=window.jspdf;const doc=new jsPDF();
-      const resp=document.getElementById('responsable').value||'Sin nombre';
-      const turno=document.getElementById('turno').value;
-      const obs=document.getElementById('observaciones').value||'Sin observaciones';
-      let y=15;doc.setFontSize(14);doc.text('Reporte Tocología',105,y,{align:'center'});y+=10;
-      doc.setFontSize(10);
-      doc.text(`Responsable: ${resp}`,14,y);
-      doc.text(`Fecha: ${(new Date()).toLocaleDateString()}`,150,y);
-      y+=6;
-      doc.text(`Turno: ${turno}`,14,y);y+=8;
-      doc.text('Observaciones:',14,y);y+=6;doc.setFontSize(9);
-      const obsLines=doc.splitTextToSize(obs,180);doc.text(obsLines,14,y);y+=obsLines.length*4+4;
+        const section = document.createElement("section");
+        section.className = "bg-white p-4 rounded-xl shadow scroll-mt-20";
+        section.id = codigo;
 
-      /* ------------- Tabla global de TODOS los ítems ------------- */
-      const bodyRows = [];
-      document.querySelectorAll('main section').forEach(sec => {
-        const eqName = sec.querySelector('h2').textContent;
-        const cat = sec.querySelector('p').dataset.cat || 'SIN URGENCIA';
-        sec.querySelectorAll('input[type=checkbox]').forEach(cb => {
-          const status = cb.checked ? 'NO' : 'SÍ';
-          bodyRows.push([eqName, cb.dataset.label, status, cb.dataset.weight, cat]);
+        const title = document.createElement("h2");
+        title.className = "text-xl font-bold mb-2 text-blue-800";
+        title.textContent = nombre;
+        section.appendChild(title);
+
+        const ul = document.createElement("ul");
+        ul.className = "space-y-1";
+
+        items.forEach(([desc, weight], idx) => {
+          const li = document.createElement("li");
+          li.className = "flex items-start gap-2";
+
+          const checkbox = document.createElement("input");
+          checkbox.type = "checkbox";
+          checkbox.className = "mt-1 h-4 w-4 text-red-600 border-gray-300 rounded";
+          checkbox.dataset.weight = weight;
+          checkbox.dataset.label = desc;
+          checkbox.id = `${codigo}-${idx}`;
+
+          const label = document.createElement("label");
+          label.htmlFor = checkbox.id;
+          label.className = "flex-1 text-sm";
+          label.innerHTML = `${desc} <span class=\"text-xs text-gray-400\">(W:${weight})</span>`;
+
+          li.appendChild(checkbox);
+          li.appendChild(label);
+          ul.appendChild(li);
         });
-      });
 
-      doc.autoTable({
-        head: [['Equipo', 'Ítem', 'Conforme', 'Peso', 'Mantenimiento']],
-        body: bodyRows,
-        startY: y,
-        theme: 'grid',
-        headStyles: { fillColor: [138, 21, 56], textColor: 255, fontSize: 8 },
-        styles: { fontSize: 7 },
-        columnStyles: {
-          0: { fontStyle: 'bold' },
-          2: { halign: 'center' }
-        },
-        didParseCell: (() => {
-          let lastEquip = '';
-          let shade = false;
-          return (data) => {
-            if (data.section === 'body') {
-              if (data.column.index === 0) { // primera columna
-                if (data.cell.raw !== lastEquip) {
-                  shade = !shade;
-                  lastEquip = data.cell.raw;
-                }
-              }
-              if (shade) data.cell.styles.fillColor = [245, 225, 192];
-              if (data.column.index === 2 && data.cell.raw === 'NO') {
-                data.cell.styles.textColor = [200, 0, 0];
-                data.cell.styles.fontStyle = 'bold';
-              }
+        section.appendChild(ul);
+
+        const result = document.createElement("p");
+        result.className = "mt-3 font-semibold";
+        result.textContent = "Clasificación: SIN URGENCIA (0)";
+        result.dataset.codigo = codigo;
+        section.appendChild(result);
+
+        section.addEventListener("change", () => {
+          let puntaje = 0;
+          let critico = false;
+          ul.querySelectorAll("input[type=checkbox]").forEach((cb) => {
+            if (cb.checked) {
+              const w = parseInt(cb.dataset.weight);
+              puntaje += w;
+              if (w === 5) critico = true;
             }
-          };
-        })()
+          });
+          const categoria = clasificar(puntaje, critico);
+          const color = {
+            INMEDIATA: "text-red-600",
+            PRONTA: "text-orange-500",
+            PROGRAMADA: "text-yellow-600",
+            SIN_URGENCIA: "text-green-600",
+          }[categoria.replace(" ", "_")];
+          result.innerHTML = `Clasificación: <span class=\"${color}\">${categoria}</span> (${puntaje})`;
+          result.dataset.puntaje = puntaje;
+          result.dataset.categoria = categoria;
+        });
+
+        app.appendChild(section);
       });
 
-      doc.save('resultado_checklist_tocologia.pdf');
-    };
-  });
+      document.getElementById("btnGenerarPDF").addEventListener("click", async () => {
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+        const nombre = document.getElementById("responsable").value || "Sin nombre";
+        let y = 10;
+        doc.setFontSize(12);
+        doc.text(`Checklist Tocología – Responsable: ${nombre}`, 10, y);
+        y += 10;
+
+        document.querySelectorAll("main > section").forEach((section) => {
+          const equipo = section.querySelector("h2").textContent;
+          const resultado = section.querySelector("p");
+          const clasif = resultado?.dataset?.categoria || "SIN URGENCIA";
+          const score = resultado?.dataset?.puntaje || 0;
+          doc.setFontSize(10);
+          doc.text(`${equipo}: ${clasif} (${score})`, 10, y);
+          y += 7;
+          section.querySelectorAll("input[type=checkbox]").forEach((cb) => {
+            if (cb.checked) {
+              doc.setFontSize(8);
+              doc.text(`   ✗ ${cb.dataset.label}`, 12, y);
+              y += 5;
+            }
+          });
+          y += 3;
+          if (y > 270) {
+            doc.addPage();
+            y = 10;
+          }
+        });
+
+        doc.save("resultado_checklist_tocologia.pdf");
+      });
+    });
   </script>
 </body>
 </html>
